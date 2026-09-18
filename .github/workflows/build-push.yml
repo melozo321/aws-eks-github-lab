@@ -4,59 +4,35 @@ on:
   push:
     branches:
       - main
-
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: aws-eks-github-lab-cloud-aws
-
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
 
-    steps:
+    permissions:
+      contents: read
+      id-token: write
 
-      # 1. Descargar el código del repositorio
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Configurar credenciales AWS
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::142595748405:role/GitHubActions-EKS-Lab
+          aws-region: us-east-1
 
-      # 3. Iniciar sesión en Amazon ECR
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 4. Construir la imagen Docker
-      - name: Build Docker image
+      - name: Build and Push Docker Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: aws-eks-github-lab
+          IMAGE_TAG: latest
         run: |
-          docker build \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            .
-
-      # 5. Subir imagen con el SHA del commit
-      - name: Push image with commit SHA
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        run: |
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
-
-      # 6. Subir también la etiqueta latest
-      - name: Push latest image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        run: |
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
